@@ -111,8 +111,7 @@ with col_btn1:
     btn_quality = st.button("📊 Parámetros de Calidad", use_container_width=True)
 
 with col_btn2:
-    btn_molecular = st.button("🧬 Análisis Molecular", use_container_width=True, disabled=True)
-    st.caption("(Próximamente)")
+    btn_molecular = st.button("🧬 Análisis Molecular", use_container_width=True)
 
 # =====================================================
 # PARÁMETROS DE CALIDAD
@@ -191,7 +190,206 @@ if btn_quality:
                 st.text_input("Copiar esta línea:", value=line_data, key=f"copytext_{sample_id}")
 
 # =====================================================
-# ANÁLISIS MOLECULAR (Pendiente)
+# ANÁLISIS MOLECULAR
 # =====================================================
 if btn_molecular:
-    st.info("🚧 Función en desarrollo. Especifica qué datos mostrar.")
+    if not st.session_state.selected_samples:
+        st.warning("⚠️ Selecciona al menos una muestra")
+    else:
+        st.markdown("### 🧬 Análisis Molecular")
+        
+        # Dropdown clasificaciones
+        clasificaciones = [
+            "Sin clasificar",
+            "Benigna",
+            "Probablemente benigna",
+            "VUS",
+            "Probablemente patogénica",
+            "Patogénica"
+        ]
+        
+        # Para cada muestra seleccionada
+        for sample_id in st.session_state.selected_samples:
+            # Info de muestra
+            sample_info = supabase.table('sample').select('sample_name').eq('sample_id', sample_id).execute()
+            sample_name = sample_info.data[0]['sample_name'] if sample_info.data else 'N/A'
+            
+            st.markdown(f"#### 📋 {sample_name}")
+            st.markdown("---")
+            
+            # ============== MUTATIONS ==============
+            mutations = supabase.table('mutation').select('*').eq('sample_id', sample_id).execute()
+            
+            if mutations.data:
+                st.markdown(f"**🧬 Mutaciones ({len(mutations.data)})**")
+                
+                for mut in mutations.data:
+                    with st.container():
+                        # Fila principal con info
+                        col_info, col_class, col_btn1, col_btn2, col_save = st.columns([6, 2, 1, 1, 1])
+                        
+                        with col_info:
+                            gene = mut['gene'] or 'N/A'
+                            protein = mut['protein'] or 'N/A'
+                            coding = mut['coding'] or 'N/A'
+                            af = mut['af'] if mut['af'] else 0
+                            dp = mut['dp'] if mut['dp'] else 0
+                            
+                            st.markdown(f"**{gene}** | {protein} | {coding}")
+                            st.caption(f"AF: {af:.3f} | DP: {dp} | Type: {mut['type'] or 'N/A'}")
+                            st.caption(f"Function: {mut['function'] or 'N/A'} | Location: {mut['location'] or 'N/A'}")
+                            st.caption(f"Oncomine: {mut['oncomine_variant_class'] or 'N/A'}")
+                        
+                        with col_class:
+                            current_class = mut['clasificacion_hgua'] or 'Sin clasificar'
+                            new_class = st.selectbox(
+                                "Clasificación",
+                                clasificaciones,
+                                index=clasificaciones.index(current_class) if current_class in clasificaciones else 0,
+                                key=f"class_mut_{mut['mutation_id']}",
+                                label_visibility="collapsed"
+                            )
+                        
+                        with col_btn1:
+                            # Copiar para búsqueda: transcript:coding
+                            transcript = mut['transcript'] or ''
+                            search_text = f"{transcript}:{coding}"
+                            if st.button("🔍", key=f"search_mut_{mut['mutation_id']}", help="Copiar para búsqueda"):
+                                st.session_state[f"show_search_mut_{mut['mutation_id']}"] = True
+                        
+                        with col_btn2:
+                            # Copiar para informe
+                            if st.button("📄", key=f"report_mut_{mut['mutation_id']}", help="Copiar para informe"):
+                                st.session_state[f"show_report_mut_{mut['mutation_id']}"] = True
+                        
+                        with col_save:
+                            if st.button("💾", key=f"save_mut_{mut['mutation_id']}", help="Guardar clasificación"):
+                                supabase.table('mutation').update({
+                                    'clasificacion_hgua': new_class
+                                }).eq('mutation_id', mut['mutation_id']).execute()
+                                st.success("✅")
+                        
+                        # Mostrar textos copiables
+                        if st.session_state.get(f"show_search_mut_{mut['mutation_id']}", False):
+                            st.text_input("Copiar búsqueda:", value=search_text, key=f"copy_search_mut_{mut['mutation_id']}")
+                        
+                        if st.session_state.get(f"show_report_mut_{mut['mutation_id']}", False):
+                            # GEN (chrom:pos; transcript) exon; coding; protein; VAF: XX.XX%; dp; type; clasificacion
+                            chrom = mut['chrom'] or ''
+                            pos = mut['pos'] or ''
+                            exon = mut['exon'] or ''
+                            vaf = af * 100
+                            mut_type = mut['type'] or ''
+                            report_text = f"{gene} ({chrom}:{pos}; {transcript}) {exon}; {coding}; {protein}; VAF: {vaf:.2f}%; {dp}; {mut_type}; {new_class}"
+                            st.text_input("Copiar informe:", value=report_text, key=f"copy_report_mut_{mut['mutation_id']}")
+                        
+                        st.markdown("---")
+            
+            # ============== ARN ALTERATIONS ==============
+            arns = supabase.table('arn_alteration').select('*').eq('sample_id', sample_id).execute()
+            
+            if arns.data:
+                st.markdown(f"**🔬 Alteraciones de ARN ({len(arns.data)})**")
+                
+                for arn in arns.data:
+                    with st.container():
+                        col_info, col_class, col_btn, col_save = st.columns([7, 2, 1, 1])
+                        
+                        with col_info:
+                            svtype = arn['svtype'] or 'N/A'
+                            arn_id = arn['id'] or 'N/A'
+                            mol_count = arn['mol_count'] if arn['mol_count'] else 0
+                            read_count = arn['read_count'] if arn['read_count'] else 0
+                            imbalance_score = arn['imbalance_score'] if arn['imbalance_score'] else 0
+                            imbalance_pval = arn['imbalance_pval'] if arn['imbalance_pval'] else 0
+                            
+                            st.markdown(f"**{arn_id}** | Type: {svtype}")
+                            st.caption(f"Mol count: {mol_count} | Read count: {read_count}")
+                            st.caption(f"Imbalance score: {imbalance_score:.3f} | P-value: {imbalance_pval:.4f}")
+                        
+                        with col_class:
+                            current_class = arn['clasificacion_hgua'] or 'Sin clasificar'
+                            new_class = st.selectbox(
+                                "Clasificación",
+                                clasificaciones,
+                                index=clasificaciones.index(current_class) if current_class in clasificaciones else 0,
+                                key=f"class_arn_{arn['arn_alteration_id']}",
+                                label_visibility="collapsed"
+                            )
+                        
+                        with col_btn:
+                            if st.button("📄", key=f"report_arn_{arn['arn_alteration_id']}", help="Copiar para informe (pendiente)", disabled=True):
+                                st.info("Formato pendiente de definir")
+                        
+                        with col_save:
+                            if st.button("💾", key=f"save_arn_{arn['arn_alteration_id']}", help="Guardar clasificación"):
+                                supabase.table('arn_alteration').update({
+                                    'clasificacion_hgua': new_class
+                                }).eq('arn_alteration_id', arn['arn_alteration_id']).execute()
+                                st.success("✅")
+                        
+                        st.markdown("---")
+            
+            # Separador entre muestras
+            if sample_id != st.session_state.selected_samples[-1]:
+                st.markdown("---")
+                st.markdown("")
+            
+            # ============== CNVs ==============
+            cnvs = supabase.table('cnv').select('*').eq('sample_id', sample_id).execute()
+            
+            if cnvs.data:
+                st.markdown(f"**📊 CNVs ({len(cnvs.data)})**")
+                
+                for cnv in cnvs.data:
+                    with st.container():
+                        col_info, col_class, col_btn, col_save = st.columns([7, 2, 1, 1])
+                        
+                        with col_info:
+                            gene_name = cnv['gene_name'] or 'N/A'
+                            cn = cnv['cn'] if cnv['cn'] else 0
+                            ci = cnv['ci'] or ''
+                            chrom = cnv['chrom'] or ''
+                            pos = cnv['pos'] or ''
+                            end_pos = cnv['end_pos'] or ''
+                            
+                            st.markdown(f"**{gene_name}** | CN: {cn:.2f}")
+                            st.caption(f"CI: {ci} | Oncomine: {cnv['oncomine_variant_class'] or 'N/A'}")
+                        
+                        with col_class:
+                            current_class = cnv['clasificacion_hgua'] or 'Sin clasificar'
+                            new_class = st.selectbox(
+                                "Clasificación",
+                                clasificaciones,
+                                index=clasificaciones.index(current_class) if current_class in clasificaciones else 0,
+                                key=f"class_cnv_{cnv['cnv_id']}",
+                                label_visibility="collapsed"
+                            )
+                        
+                        with col_btn:
+                            if st.button("📄", key=f"report_cnv_{cnv['cnv_id']}", help="Copiar para informe"):
+                                st.session_state[f"show_report_cnv_{cnv['cnv_id']}"] = True
+                        
+                        with col_save:
+                            if st.button("💾", key=f"save_cnv_{cnv['cnv_id']}", help="Guardar clasificación"):
+                                supabase.table('cnv').update({
+                                    'clasificacion_hgua': new_class
+                                }).eq('cnv_id', cnv['cnv_id']).execute()
+                                st.success("✅")
+                        
+                        # Texto para informe
+                        if st.session_state.get(f"show_report_cnv_{cnv['cnv_id']}", False):
+                            # Determinar amplificación o deleción
+                            condicion = "Amplificación" if cn > 2 else "Deleción"
+                            
+                            # Formatear CI con %
+                            ci_formatted = ci
+                            if ci and '-' in ci:
+                                parts = ci.split('-')
+                                if len(parts) == 2:
+                                    ci_formatted = f"{parts[0]}%-{parts[1]}%"
+                            
+                            report_text = f"{condicion} {gene_name} ({chrom}; {pos}:{end_pos}) {ci_formatted}"
+                            st.text_input("Copiar informe:", value=report_text, key=f"copy_report_cnv_{cnv['cnv_id']}")
+                        
+                        st.markdown("
