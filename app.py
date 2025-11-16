@@ -2,43 +2,196 @@ import streamlit as st
 from supabase import create_client
 import pandas as pd
 
-# Configuración
-st.set_page_config(page_title="🧬 Genómica HGUA", layout="wide")
-
-# Conexión Supabase
-supabase = create_client(
-    st.secrets["SUPABASE_URL"],
-    st.secrets["SUPABASE_KEY"]
+# =====================================================
+# CONFIGURACIÓN
+# =====================================================
+st.set_page_config(
+    page_title="🧬 Genómica HGUA",
+    page_icon="🧬",
+    layout="wide"
 )
 
-# Título
-st.title("🧬 Base de Datos Genómica - HGUA")
+# Conexión Supabase
+@st.cache_resource
+def init_supabase():
+    return create_client(
+        st.secrets["SUPABASE_URL"],
+        st.secrets["SUPABASE_KEY"]
+    )
 
-# Buscar muestra
-sample_name = st.text_input("Buscar muestra:", placeholder="25B16796-A1")
+supabase = init_supabase()
 
-if sample_name:
-    # Obtener datos
-    sample = supabase.table('sample').select('*').eq('sample_name', sample_name).execute()
+# =====================================================
+# TÍTULO
+# =====================================================
+st.title("🧬 Base de Datos Genómica-HGUA")
+st.markdown("---")
+
+# =====================================================
+# BARRA DE BÚSQUEDA
+# =====================================================
+search = st.text_input(
+    "🔍 Buscar muestra:",
+    placeholder="Ej: 25B, 24P, 23C...",
+    help="Formato: [Año][Tipo][Número]. Ejemplo: 25B16796"
+)
+
+# =====================================================
+# OBTENER MUESTRAS
+# =====================================================
+def get_samples(search_term=None):
+    """Obtiene muestras filtradas o las últimas 20"""
+    query = supabase.table('sample').select('sample_id, sample_name, analysis_date, workflow_name')
     
-    if sample.data:
-        st.success(f"✅ Muestra encontrada: {sample_name}")
+    if search_term:
+        query = query.ilike('sample_name', f'{search_term}%')
+    
+    response = query.order('analysis_date', desc=True).limit(20).execute()
+    return response.data
+
+# Obtener muestras
+samples = get_samples(search if search else None)
+
+# =====================================================
+# TABLA CON CHECKBOXES
+# =====================================================
+st.markdown("### Muestras disponibles")
+st.caption(f"Mostrando {len(samples)} muestra(s)")
+
+if samples:
+    # Inicializar selección en session_state
+    if 'selected_samples' not in st.session_state:
+        st.session_state.selected_samples = []
+    
+    # Crear tabla
+    col1, col2, col3, col4 = st.columns([1, 4, 3, 3])
+    
+    with col1:
+        st.markdown("**☑**")
+    with col2:
+        st.markdown("**Sample Name**")
+    with col3:
+        st.markdown("**Analysis Date**")
+    with col4:
+        st.markdown("**Workflow**")
+    
+    st.markdown("---")
+    
+    # Filas con checkboxes
+    for idx, sample in enumerate(samples):
+        col1, col2, col3, col4 = st.columns([1, 4, 3, 3])
         
-        # Mostrar info
-        s = sample.data[0]
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Fecha", s['analysis_date'])
-        col2.metric("Celularidad", f"{s['tumor_cellularity']}%")
-        col3.metric("Enfermedad", s['disease_type'])
+        with col1:
+            checked = st.checkbox(
+                "☑",
+                key=f"check_{sample['sample_id']}",
+                label_visibility="collapsed"
+            )
+            if checked and sample['sample_id'] not in st.session_state.selected_samples:
+                st.session_state.selected_samples.append(sample['sample_id'])
+            elif not checked and sample['sample_id'] in st.session_state.selected_samples:
+                st.session_state.selected_samples.remove(sample['sample_id'])
         
-        # Obtener mutaciones
-        mutations = supabase.table('mutation').select('*').eq('sample_id', s['sample_id']).execute()
-        
-        st.subheader(f"🧬 Mutaciones ({len(mutations.data)})")
-        if mutations.data:
-            df = pd.DataFrame(mutations.data)
-            st.dataframe(df[['gene', 'protein', 'af', 'dp', 'filter']], use_container_width=True)
-        else:
-            st.info("No hay mutaciones")
+        with col2:
+            st.text(sample['sample_name'])
+        with col3:
+            st.text(sample['analysis_date'] or 'N/A')
+        with col4:
+            st.text(sample['workflow_name'] or 'N/A')
+else:
+    st.info("No se encontraron muestras")
+
+# =====================================================
+# BOTONES DE ACCIÓN
+# =====================================================
+st.markdown("---")
+col_btn1, col_btn2, col_spacer = st.columns([2, 2, 6])
+
+with col_btn1:
+    btn_quality = st.button("📊 Parámetros de Calidad", use_container_width=True)
+
+with col_btn2:
+    btn_molecular = st.button("🧬 Análisis Molecular", use_container_width=True, disabled=True)
+    st.caption("(Próximamente)")
+
+# =====================================================
+# PARÁMETROS DE CALIDAD
+# =====================================================
+if btn_quality:
+    if not st.session_state.selected_samples:
+        st.warning("⚠️ Selecciona al menos una muestra")
     else:
-        st.error("❌ Muestra no encontrada")
+        st.markdown("### 📊 Parámetros de Calidad")
+        st.caption("Formato listo para copiar a Google Sheets (separado por TAB)")
+        
+        # Encabezados
+        col_name, col_reads, col_aligned, col_mapd, col_fusion, col_copy = st.columns([3, 2, 2, 1, 1, 1])
+        with col_name:
+            st.markdown("**Sample_name**")
+        with col_reads:
+            st.markdown("**mean_reads**")
+        with col_aligned:
+            st.markdown("**percent_aligned**")
+        with col_mapd:
+            st.markdown("**mapd**")
+        with col_fusion:
+            st.markdown("**fusion_qc**")
+        with col_copy:
+            st.markdown("**Copiar**")
+        
+        st.markdown("---")
+        
+        # Obtener datos de QC
+        for sample_id in st.session_state.selected_samples:
+            # Info de muestra
+            sample_info = supabase.table('sample').select('sample_name').eq('sample_id', sample_id).execute()
+            sample_name = sample_info.data[0]['sample_name'] if sample_info.data else 'N/A'
+            
+            # QC ADN
+            qc_adn = supabase.table('sample_adn_qc').select('*').eq('sample_id', sample_id).execute()
+            
+            # QC ARN
+            qc_arn = supabase.table('sample_arn_qc').select('*').eq('sample_id', sample_id).execute()
+            
+            # Procesar datos
+            mean_reads = int(qc_adn.data[0]['median_reads_per_amplicon']) if qc_adn.data and qc_adn.data[0].get('median_reads_per_amplicon') else 'N/A'
+            percent_aligned = qc_adn.data[0]['percent_aligned_reads'] if qc_adn.data and qc_adn.data[0].get('percent_aligned_reads') else 'N/A'
+            mapd = f"{qc_adn.data[0]['mapd']:.2f}" if qc_adn.data and qc_adn.data[0].get('mapd') else 'N/A'
+            
+            # Extraer solo PASS/FAIL de fusion_qc
+            fusion_qc_raw = qc_arn.data[0]['fusion_qc'] if qc_arn.data and qc_arn.data[0].get('fusion_qc') else 'N/A'
+            if fusion_qc_raw != 'N/A':
+                fusion_qc = fusion_qc_raw.split(',')[0].strip().upper()
+            else:
+                fusion_qc = 'N/A'
+            
+            # Crear línea para copiar (separada por TAB para Google Sheets)
+            line_data = f"{sample_name}\t{mean_reads}\t{percent_aligned}\t{mapd}\t{fusion_qc}"
+            
+            # Mostrar fila
+            col_name, col_reads, col_aligned, col_mapd, col_fusion, col_copy = st.columns([3, 2, 2, 1, 1, 1])
+            
+            with col_name:
+                st.text(sample_name)
+            with col_reads:
+                st.text(str(mean_reads))
+            with col_aligned:
+                st.text(str(percent_aligned))
+            with col_mapd:
+                st.text(str(mapd))
+            with col_fusion:
+                st.text(fusion_qc)
+            with col_copy:
+                # Botón que muestra el texto copiable
+                if st.button("📋", key=f"copy_{sample_id}", help="Click para ver texto copiable"):
+                    st.session_state[f"show_copy_{sample_id}"] = True
+            
+            # Mostrar texto copiable si se presionó el botón
+            if st.session_state.get(f"show_copy_{sample_id}", False):
+                st.text_input("Copiar esta línea:", value=line_data, key=f"copytext_{sample_id}")
+
+# =====================================================
+# ANÁLISIS MOLECULAR (Pendiente)
+# =====================================================
+if btn_molecular:
+    st.info("🚧 Función en desarrollo. Especifica qué datos mostrar.")
