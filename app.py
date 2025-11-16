@@ -392,4 +392,54 @@ if btn_molecular:
                             report_text = f"{condicion} {gene_name} ({chrom}; {pos}:{end_pos}) {ci_formatted}"
                             st.text_input("Copiar informe:", value=report_text, key=f"copy_report_cnv_{cnv['cnv_id']}")
                         
-                        st.markdown("
+                        st.markdown("---")
+            
+            # ============== ARN ALTERATIONS ==============
+            arns = supabase.table('arn_alteration').select('*').eq('sample_id', sample_id).execute()
+            
+            if arns.data:
+                st.markdown(f"**🔬 Alteraciones de ARN ({len(arns.data)})**")
+                
+                for arn in arns.data:
+                    with st.container():
+                        col_info, col_class, col_btn, col_save = st.columns([7, 2, 1, 1])
+                        
+                        with col_info:
+                            svtype = arn['svtype'] or 'N/A'
+                            arn_id = arn['id'] or 'N/A'
+                            mol_count = arn['mol_count'] if arn['mol_count'] else 0
+                            read_count = arn['read_count'] if arn['read_count'] else 0
+                            imbalance_score = arn['imbalance_score'] if arn['imbalance_score'] else 0
+                            imbalance_pval = arn['imbalance_pval'] if arn['imbalance_pval'] else 0
+                            
+                            st.markdown(f"**{arn_id}** | Type: {svtype}")
+                            st.caption(f"Mol count: {mol_count} | Read count: {read_count}")
+                            st.caption(f"Imbalance score: {imbalance_score:.3f} | P-value: {imbalance_pval:.4f}")
+                        
+                        with col_class:
+                            current_class = arn['clasificacion_hgua'] or 'Sin clasificar'
+                            new_class = st.selectbox(
+                                "Clasificación",
+                                clasificaciones,
+                                index=clasificaciones.index(current_class) if current_class in clasificaciones else 0,
+                                key=f"class_arn_{arn['arn_alteration_id']}",
+                                label_visibility="collapsed"
+                            )
+                        
+                        with col_btn:
+                            if st.button("📄", key=f"report_arn_{arn['arn_alteration_id']}", help="Copiar para informe (pendiente)", disabled=True):
+                                st.info("Formato pendiente de definir")
+                        
+                        with col_save:
+                            if st.button("💾", key=f"save_arn_{arn['arn_alteration_id']}", help="Guardar clasificación"):
+                                supabase.table('arn_alteration').update({
+                                    'clasificacion_hgua': new_class
+                                }).eq('arn_alteration_id', arn['arn_alteration_id']).execute()
+                                st.success("✅")
+                        
+                        st.markdown("---")
+            
+            # Separador entre muestras
+            if sample_id != st.session_state.selected_samples[-1]:
+                st.markdown("---")
+                st.markdown("")
