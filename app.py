@@ -113,6 +113,19 @@ with col_btn1:
 with col_btn2:
     btn_molecular = st.button("🧬 Análisis Molecular", use_container_width=True)
 
+# Al presionar "Análisis Molecular", guardar las muestras seleccionadas
+if btn_molecular:
+    if not st.session_state.selected_samples:
+        st.warning("⚠️ Selecciona al menos una muestra")
+    else:
+        st.session_state['analyzing_samples'] = st.session_state.selected_samples.copy()
+
+# Botón para cerrar análisis molecular
+if st.session_state.get('analyzing_samples'):
+    if st.button("❌ Cerrar Análisis Molecular", type="secondary"):
+        st.session_state['analyzing_samples'] = None
+        st.rerun()
+
 # =====================================================
 # PARÁMETROS DE CALIDAD
 # =====================================================
@@ -192,24 +205,21 @@ if btn_quality:
 # =====================================================
 # ANÁLISIS MOLECULAR
 # =====================================================
-if btn_molecular:
-    if not st.session_state.selected_samples:
-        st.warning("⚠️ Selecciona al menos una muestra")
-    else:
-        st.markdown("### 🧬 Análisis Molecular")
-        
-        # Dropdown clasificaciones
-        clasificaciones = [
-            "Sin clasificar",
-            "Benigna",
-            "Probablemente benigna",
-            "VUS",
-            "Probablemente patogénica",
-            "Patogénica"
-        ]
-        
-        # Para cada muestra seleccionada
-        for sample_id in st.session_state.selected_samples:
+if st.session_state.get('analyzing_samples'):
+    st.markdown("### 🧬 Análisis Molecular")
+    
+    # Dropdown clasificaciones
+    clasificaciones = [
+        "Sin clasificar",
+        "Benigna",
+        "Probablemente benigna",
+        "VUS",
+        "Probablemente patogénica",
+        "Patogénica"
+    ]
+    
+    # Para cada muestra que se está analizando
+    for sample_id in st.session_state['analyzing_samples']:
             # Info de muestra
             sample_info = supabase.table('sample').select('sample_name').eq('sample_id', sample_id).execute()
             sample_name = sample_info.data[0]['sample_name'] if sample_info.data else 'N/A'
@@ -331,7 +341,7 @@ if btn_molecular:
                         st.markdown("---")
             
             # Separador entre muestras
-            if sample_id != st.session_state.selected_samples[-1]:
+            if sample_id != st.session_state["analyzing_samples"][-1]:
                 st.markdown("---")
                 st.markdown("")
             
@@ -440,6 +450,6 @@ if btn_molecular:
                         st.markdown("---")
             
             # Separador entre muestras
-            if sample_id != st.session_state.selected_samples[-1]:
+            if sample_id != st.session_state["analyzing_samples"][-1]:
                 st.markdown("---")
                 st.markdown("")
