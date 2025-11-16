@@ -264,34 +264,18 @@ if st.session_state.get('analyzing_samples'):
                             )
                         
                         with col_btn1:
-                            # Copiar para búsqueda: transcript:coding
-                            transcript = mut['transcript'] or ''
-                            search_text = f"{transcript}:{coding}"
+                            # Botón copiar para búsqueda
                             if st.button("🔍", key=f"search_mut_{mut['mutation_id']}", help="Copiar para búsqueda"):
-                                st.text_area(
-                                    "📋 Copiar búsqueda (Ctrl+A → Ctrl+C):",
-                                    value=search_text,
-                                    height=60,
-                                    key=f"copy_search_mut_{mut['mutation_id']}"
-                                )
+                                st.session_state[f"show_search_mut_{mut['mutation_id']}"] = True
+                            else:
+                                st.session_state[f"show_search_mut_{mut['mutation_id']}"] = False
                         
                         with col_btn2:
-                            # Copiar para informe
+                            # Botón copiar para informe
                             if st.button("📄", key=f"report_mut_{mut['mutation_id']}", help="Copiar para informe"):
-                                # GEN (chrom:pos; transcript) exón X; coding; protein; VAF: XX.XX%; dp; type; clasificacion
-                                chrom = mut['chrom'] or ''
-                                pos = mut['pos'] or ''
-                                exon = mut['exon'] or ''
-                                exon_formatted = f"exón {exon}" if exon else ""
-                                vaf = af * 100
-                                mut_type = mut['type'] or ''
-                                report_text = f"{gene} ({chrom}:{pos}; {transcript}) {exon_formatted}; {coding}; {protein}; VAF: {vaf:.2f}%; {dp}; {mut_type}; {new_class}"
-                                st.text_area(
-                                    "📋 Copiar informe (Ctrl+A → Ctrl+C):",
-                                    value=report_text,
-                                    height=100,
-                                    key=f"copy_report_mut_{mut['mutation_id']}"
-                                )
+                                st.session_state[f"show_report_mut_{mut['mutation_id']}"] = True
+                            else:
+                                st.session_state[f"show_report_mut_{mut['mutation_id']}"] = False
                         
                         with col_save:
                             if st.button("💾", key=f"save_mut_{mut['mutation_id']}", help="Guardar clasificación"):
@@ -299,6 +283,34 @@ if st.session_state.get('analyzing_samples'):
                                     'clasificacion_hgua': new_class
                                 }).eq('mutation_id', mut['mutation_id']).execute()
                                 st.success("✅", icon="✅")
+                        
+                        # Campo para búsqueda - ANCHO COMPLETO DEBAJO
+                        if st.session_state.get(f"show_search_mut_{mut['mutation_id']}", False):
+                            transcript = mut['transcript'] or ''
+                            search_text = f"{transcript}:{coding}"
+                            st.text_area(
+                                "📋 Copiar búsqueda (Ctrl+A → Ctrl+C):",
+                                value=search_text,
+                                height=80,
+                                key=f"copy_search_mut_{mut['mutation_id']}"
+                            )
+                        
+                        # Campo para informe - ANCHO COMPLETO DEBAJO
+                        if st.session_state.get(f"show_report_mut_{mut['mutation_id']}", False):
+                            chrom = mut['chrom'] or ''
+                            pos = mut['pos'] or ''
+                            exon = mut['exon'] or ''
+                            exon_formatted = f"exón {exon}" if exon else ""
+                            vaf = af * 100
+                            mut_type = mut['type'] or ''
+                            transcript = mut['transcript'] or ''
+                            report_text = f"{gene} ({chrom}:{pos}; {transcript}) {exon_formatted}; {coding}; {protein}; VAF: {vaf:.2f}%; {dp}; {mut_type}; {new_class}"
+                            st.text_area(
+                                "📋 Copiar informe (Ctrl+A → Ctrl+C):",
+                                value=report_text,
+                                height=120,
+                                key=f"copy_report_mut_{mut['mutation_id']}"
+                            )
                         
                         st.markdown("---")
             
@@ -342,23 +354,9 @@ if st.session_state.get('analyzing_samples'):
                         
                         with col_btn:
                             if st.button("📄", key=f"report_cnv_{cnv['cnv_id']}", help="Copiar para informe"):
-                                # Determinar amplificación o deleción
-                                condicion = "Amplificación" if cn > 2 else "Deleción"
-                                
-                                # Formatear CI con %
-                                ci_formatted = ci
-                                if ci and '-' in ci:
-                                    parts = ci.split('-')
-                                    if len(parts) == 2:
-                                        ci_formatted = f"{parts[0]}%-{parts[1]}%"
-                                
-                                report_text = f"{condicion} {gene_name} ({chrom}; {pos}:{end_pos}) {ci_formatted}"
-                                st.text_area(
-                                    "📋 Copiar informe (Ctrl+A → Ctrl+C):",
-                                    value=report_text,
-                                    height=80,
-                                    key=f"copy_report_cnv_{cnv['cnv_id']}"
-                                )
+                                st.session_state[f"show_report_cnv_{cnv['cnv_id']}"] = True
+                            else:
+                                st.session_state[f"show_report_cnv_{cnv['cnv_id']}"] = False
                         
                         with col_save:
                             if st.button("💾", key=f"save_cnv_{cnv['cnv_id']}", help="Guardar clasificación"):
@@ -366,6 +364,26 @@ if st.session_state.get('analyzing_samples'):
                                     'clasificacion_hgua': new_class
                                 }).eq('cnv_id', cnv['cnv_id']).execute()
                                 st.success("✅", icon="✅")
+                        
+                        # Campo para informe - ANCHO COMPLETO DEBAJO
+                        if st.session_state.get(f"show_report_cnv_{cnv['cnv_id']}", False):
+                            # Determinar amplificación o deleción
+                            condicion = "Amplificación" if cn > 2 else "Deleción"
+                            
+                            # Formatear CI con %
+                            ci_formatted = ci
+                            if ci and '-' in ci:
+                                parts = ci.split('-')
+                                if len(parts) == 2:
+                                    ci_formatted = f"{parts[0]}%-{parts[1]}%"
+                            
+                            report_text = f"{condicion} {gene_name} ({chrom}; {pos}:{end_pos}) {ci_formatted}"
+                            st.text_area(
+                                "📋 Copiar informe (Ctrl+A → Ctrl+C):",
+                                value=report_text,
+                                height=100,
+                                key=f"copy_report_cnv_{cnv['cnv_id']}"
+                            )
                         
                         st.markdown("---")
             
