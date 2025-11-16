@@ -215,7 +215,8 @@ if st.session_state.get('analyzing_samples'):
         "Probablemente benigna",
         "VUS",
         "Probablemente patogénica",
-        "Patogénica"
+        "Patogénica",
+        "No informar por QC"
     ]
     
     # Para cada muestra que se está analizando
@@ -235,7 +236,7 @@ if st.session_state.get('analyzing_samples'):
                 
                 for mut in mutations.data:
                     with st.container():
-                        # Fila principal con info
+                        # Fila principal con info - TEXTO MÁS GRANDE
                         col_info, col_class, col_btn1, col_btn2, col_save = st.columns([6, 2, 1, 1, 1])
                         
                         with col_info:
@@ -245,10 +246,12 @@ if st.session_state.get('analyzing_samples'):
                             af = mut['af'] if mut['af'] else 0
                             dp = mut['dp'] if mut['dp'] else 0
                             
-                            st.markdown(f"**{gene}** | {protein} | {coding}")
-                            st.caption(f"AF: {af:.3f} | DP: {dp} | Type: {mut['type'] or 'N/A'}")
-                            st.caption(f"Function: {mut['function'] or 'N/A'} | Location: {mut['location'] or 'N/A'}")
-                            st.caption(f"Oncomine: {mut['oncomine_variant_class'] or 'N/A'}")
+                            # Texto más grande
+                            st.markdown(f"### {gene} | {protein}")
+                            st.markdown(f"**Coding:** {coding}")
+                            st.markdown(f"**AF:** {af:.3f} | **DP:** {dp} | **Type:** {mut['type'] or 'N/A'}")
+                            st.markdown(f"**Function:** {mut['function'] or 'N/A'} | **Location:** {mut['location'] or 'N/A'}")
+                            st.markdown(f"**Oncomine:** {mut['oncomine_variant_class'] or 'N/A'}")
                         
                         with col_class:
                             current_class = mut['clasificacion_hgua'] or 'Sin clasificar'
@@ -265,78 +268,28 @@ if st.session_state.get('analyzing_samples'):
                             transcript = mut['transcript'] or ''
                             search_text = f"{transcript}:{coding}"
                             if st.button("🔍", key=f"search_mut_{mut['mutation_id']}", help="Copiar para búsqueda"):
-                                st.session_state[f"show_search_mut_{mut['mutation_id']}"] = True
+                                st.code(search_text, language=None)
+                                st.caption("⬆️ Selecciona y copia (Ctrl+C)")
                         
                         with col_btn2:
                             # Copiar para informe
                             if st.button("📄", key=f"report_mut_{mut['mutation_id']}", help="Copiar para informe"):
-                                st.session_state[f"show_report_mut_{mut['mutation_id']}"] = True
+                                # GEN (chrom:pos; transcript) exon; coding; protein; VAF: XX.XX%; dp; type; clasificacion
+                                chrom = mut['chrom'] or ''
+                                pos = mut['pos'] or ''
+                                exon = mut['exon'] or ''
+                                vaf = af * 100
+                                mut_type = mut['type'] or ''
+                                report_text = f"{gene} ({chrom}:{pos}; {transcript}) {exon}; {coding}; {protein}; VAF: {vaf:.2f}%; {dp}; {mut_type}; {new_class}"
+                                st.code(report_text, language=None)
+                                st.caption("⬆️ Selecciona y copia (Ctrl+C)")
                         
                         with col_save:
                             if st.button("💾", key=f"save_mut_{mut['mutation_id']}", help="Guardar clasificación"):
                                 supabase.table('mutation').update({
                                     'clasificacion_hgua': new_class
                                 }).eq('mutation_id', mut['mutation_id']).execute()
-                                st.success("✅")
-                        
-                        # Mostrar textos copiables
-                        if st.session_state.get(f"show_search_mut_{mut['mutation_id']}", False):
-                            st.text_input("Copiar búsqueda:", value=search_text, key=f"copy_search_mut_{mut['mutation_id']}")
-                        
-                        if st.session_state.get(f"show_report_mut_{mut['mutation_id']}", False):
-                            # GEN (chrom:pos; transcript) exon; coding; protein; VAF: XX.XX%; dp; type; clasificacion
-                            chrom = mut['chrom'] or ''
-                            pos = mut['pos'] or ''
-                            exon = mut['exon'] or ''
-                            vaf = af * 100
-                            mut_type = mut['type'] or ''
-                            report_text = f"{gene} ({chrom}:{pos}; {transcript}) {exon}; {coding}; {protein}; VAF: {vaf:.2f}%; {dp}; {mut_type}; {new_class}"
-                            st.text_input("Copiar informe:", value=report_text, key=f"copy_report_mut_{mut['mutation_id']}")
-                        
-                        st.markdown("---")
-            
-            # ============== ARN ALTERATIONS ==============
-            arns = supabase.table('arn_alteration').select('*').eq('sample_id', sample_id).execute()
-            
-            if arns.data:
-                st.markdown(f"**🔬 Alteraciones de ARN ({len(arns.data)})**")
-                
-                for arn in arns.data:
-                    with st.container():
-                        col_info, col_class, col_btn, col_save = st.columns([7, 2, 1, 1])
-                        
-                        with col_info:
-                            svtype = arn['svtype'] or 'N/A'
-                            arn_id = arn['id'] or 'N/A'
-                            mol_count = arn['mol_count'] if arn['mol_count'] else 0
-                            read_count = arn['read_count'] if arn['read_count'] else 0
-                            imbalance_score = arn['imbalance_score'] if arn['imbalance_score'] else 0
-                            imbalance_pval = arn['imbalance_pval'] if arn['imbalance_pval'] else 0
-                            
-                            st.markdown(f"**{arn_id}** | Type: {svtype}")
-                            st.caption(f"Mol count: {mol_count} | Read count: {read_count}")
-                            st.caption(f"Imbalance score: {imbalance_score:.3f} | P-value: {imbalance_pval:.4f}")
-                        
-                        with col_class:
-                            current_class = arn['clasificacion_hgua'] or 'Sin clasificar'
-                            new_class = st.selectbox(
-                                "Clasificación",
-                                clasificaciones,
-                                index=clasificaciones.index(current_class) if current_class in clasificaciones else 0,
-                                key=f"class_arn_{arn['arn_alteration_id']}",
-                                label_visibility="collapsed"
-                            )
-                        
-                        with col_btn:
-                            if st.button("📄", key=f"report_arn_{arn['arn_alteration_id']}", help="Copiar para informe (pendiente)", disabled=True):
-                                st.info("Formato pendiente de definir")
-                        
-                        with col_save:
-                            if st.button("💾", key=f"save_arn_{arn['arn_alteration_id']}", help="Guardar clasificación"):
-                                supabase.table('arn_alteration').update({
-                                    'clasificacion_hgua': new_class
-                                }).eq('arn_alteration_id', arn['arn_alteration_id']).execute()
-                                st.success("✅")
+                                st.success("✅", icon="✅")
                         
                         st.markdown("---")
             
@@ -363,8 +316,10 @@ if st.session_state.get('analyzing_samples'):
                             pos = cnv['pos'] or ''
                             end_pos = cnv['end_pos'] or ''
                             
-                            st.markdown(f"**{gene_name}** | CN: {cn:.2f}")
-                            st.caption(f"CI: {ci} | Oncomine: {cnv['oncomine_variant_class'] or 'N/A'}")
+                            # Texto más grande
+                            st.markdown(f"### {gene_name}")
+                            st.markdown(f"**CN:** {cn:.2f} | **CI:** {ci}")
+                            st.markdown(f"**Oncomine:** {cnv['oncomine_variant_class'] or 'N/A'}")
                         
                         with col_class:
                             current_class = cnv['clasificacion_hgua'] or 'Sin clasificar'
@@ -378,29 +333,26 @@ if st.session_state.get('analyzing_samples'):
                         
                         with col_btn:
                             if st.button("📄", key=f"report_cnv_{cnv['cnv_id']}", help="Copiar para informe"):
-                                st.session_state[f"show_report_cnv_{cnv['cnv_id']}"] = True
+                                # Determinar amplificación o deleción
+                                condicion = "Amplificación" if cn > 2 else "Deleción"
+                                
+                                # Formatear CI con %
+                                ci_formatted = ci
+                                if ci and '-' in ci:
+                                    parts = ci.split('-')
+                                    if len(parts) == 2:
+                                        ci_formatted = f"{parts[0]}%-{parts[1]}%"
+                                
+                                report_text = f"{condicion} {gene_name} ({chrom}; {pos}:{end_pos}) {ci_formatted}"
+                                st.code(report_text, language=None)
+                                st.caption("⬆️ Selecciona y copia (Ctrl+C)")
                         
                         with col_save:
                             if st.button("💾", key=f"save_cnv_{cnv['cnv_id']}", help="Guardar clasificación"):
                                 supabase.table('cnv').update({
                                     'clasificacion_hgua': new_class
                                 }).eq('cnv_id', cnv['cnv_id']).execute()
-                                st.success("✅")
-                        
-                        # Texto para informe
-                        if st.session_state.get(f"show_report_cnv_{cnv['cnv_id']}", False):
-                            # Determinar amplificación o deleción
-                            condicion = "Amplificación" if cn > 2 else "Deleción"
-                            
-                            # Formatear CI con %
-                            ci_formatted = ci
-                            if ci and '-' in ci:
-                                parts = ci.split('-')
-                                if len(parts) == 2:
-                                    ci_formatted = f"{parts[0]}%-{parts[1]}%"
-                            
-                            report_text = f"{condicion} {gene_name} ({chrom}; {pos}:{end_pos}) {ci_formatted}"
-                            st.text_input("Copiar informe:", value=report_text, key=f"copy_report_cnv_{cnv['cnv_id']}")
+                                st.success("✅", icon="✅")
                         
                         st.markdown("---")
             
@@ -422,9 +374,11 @@ if st.session_state.get('analyzing_samples'):
                             imbalance_score = arn['imbalance_score'] if arn['imbalance_score'] else 0
                             imbalance_pval = arn['imbalance_pval'] if arn['imbalance_pval'] else 0
                             
-                            st.markdown(f"**{arn_id}** | Type: {svtype}")
-                            st.caption(f"Mol count: {mol_count} | Read count: {read_count}")
-                            st.caption(f"Imbalance score: {imbalance_score:.3f} | P-value: {imbalance_pval:.4f}")
+                            # Texto más grande
+                            st.markdown(f"### {arn_id}")
+                            st.markdown(f"**Type:** {svtype}")
+                            st.markdown(f"**Mol count:** {mol_count} | **Read count:** {read_count}")
+                            st.markdown(f"**Imbalance score:** {imbalance_score:.3f} | **P-value:** {imbalance_pval:.4f}")
                         
                         with col_class:
                             current_class = arn['clasificacion_hgua'] or 'Sin clasificar'
@@ -445,7 +399,7 @@ if st.session_state.get('analyzing_samples'):
                                 supabase.table('arn_alteration').update({
                                     'clasificacion_hgua': new_class
                                 }).eq('arn_alteration_id', arn['arn_alteration_id']).execute()
-                                st.success("✅")
+                                st.success("✅", icon="✅")
                         
                         st.markdown("---")
             
