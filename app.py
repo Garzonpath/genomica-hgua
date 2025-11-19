@@ -132,7 +132,7 @@ if st.session_state.get('analyzing_samples'):
 # =====================================================
 if st.session_state.get('show_quality', False):
     st.markdown("### 📊 Parámetros de Calidad")
-    st.caption("Formato listo para copiar a Google Sheets (separado por TAB)")
+    st.caption("Datos listos para copiar a Google Sheets (4 columnas sin sample_name, separado por TAB)")
     
     # Recopilar TODOS los datos primero
     all_lines = []
@@ -161,8 +161,8 @@ if st.session_state.get('show_quality', False):
         else:
             fusion_qc = 'N/A'
         
-        # Crear línea para copiar (separada por TAB para Google Sheets)
-        line_data = f"{sample_name}\t{mean_reads}\t{uniformity_coverage}\t{mapd}\t{fusion_qc}"
+        # Crear línea para copiar (separada por TAB para Google Sheets) - SIN sample_name
+        line_data = f"{mean_reads}\t{uniformity_coverage}\t{mapd}\t{fusion_qc}"
         all_lines.append(line_data)
         
         # Guardar para mostrar en tabla
@@ -213,7 +213,7 @@ if st.session_state.get('show_quality', False):
         value=all_data_text,
         height=150,
         key="copy_all_quality",
-        help="Los datos están separados por TAB. Al pegar en Google Sheets se distribuirán automáticamente en columnas."
+        help="Los datos están separados por TAB (4 columnas: mean_reads, uniformity_coverage, mapd, fusion_qc). Al pegar en Google Sheets se distribuirán automáticamente."
     )
     
     # Botón para cerrar
