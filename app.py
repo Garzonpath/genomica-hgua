@@ -108,17 +108,18 @@ st.markdown("---")
 col_btn1, col_btn2, col_spacer = st.columns([2, 2, 6])
 
 with col_btn1:
-    btn_quality = st.button("📊 Parámetros de Calidad", use_container_width=True)
+    if st.button("📊 Parámetros de Calidad", use_container_width=True):
+        if not st.session_state.selected_samples:
+            st.warning("⚠️ Selecciona al menos una muestra")
+        else:
+            st.session_state['show_quality'] = not st.session_state.get('show_quality', False)
 
 with col_btn2:
-    btn_molecular = st.button("🧬 Análisis Molecular", use_container_width=True)
-
-# Al presionar "Análisis Molecular", guardar las muestras seleccionadas
-if btn_molecular:
-    if not st.session_state.selected_samples:
-        st.warning("⚠️ Selecciona al menos una muestra")
-    else:
-        st.session_state['analyzing_samples'] = st.session_state.selected_samples.copy()
+    if st.button("🧬 Análisis Molecular", use_container_width=True):
+        if not st.session_state.selected_samples:
+            st.warning("⚠️ Selecciona al menos una muestra")
+        else:
+            st.session_state['analyzing_samples'] = st.session_state.selected_samples.copy()
 
 # Botón para cerrar análisis molecular
 if st.session_state.get('analyzing_samples'):
@@ -129,88 +130,96 @@ if st.session_state.get('analyzing_samples'):
 # =====================================================
 # PARÁMETROS DE CALIDAD
 # =====================================================
-if btn_quality:
-    if not st.session_state.selected_samples:
-        st.warning("⚠️ Selecciona al menos una muestra")
-    else:
-        st.markdown("### 📊 Parámetros de Calidad")
-        st.caption("Formato listo para copiar a Google Sheets (separado por TAB)")
+if st.session_state.get('show_quality', False):
+    st.markdown("### 📊 Parámetros de Calidad")
+    st.caption("Formato listo para copiar a Google Sheets (separado por TAB)")
+    
+    # Recopilar TODOS los datos primero
+    all_lines = []
+    quality_data_display = []
+    
+    for sample_id in st.session_state.selected_samples:
+        # Info de muestra
+        sample_info = supabase.table('sample').select('sample_name').eq('sample_id', sample_id).execute()
+        sample_name = sample_info.data[0]['sample_name'] if sample_info.data else 'N/A'
         
-        # Encabezados
-        col_name, col_reads, col_aligned, col_mapd, col_fusion, col_copy = st.columns([3, 2, 2, 1, 1, 1])
+        # QC ADN
+        qc_adn = supabase.table('sample_adn_qc').select('*').eq('sample_id', sample_id).execute()
+        
+        # QC ARN
+        qc_arn = supabase.table('sample_arn_qc').select('*').eq('sample_id', sample_id).execute()
+        
+        # Procesar datos
+        mean_reads = int(qc_adn.data[0]['median_reads_per_amplicon']) if qc_adn.data and qc_adn.data[0].get('median_reads_per_amplicon') else 'N/A'
+        uniformity_coverage = f"{qc_adn.data[0]['uniformity_of_base_coverage']:.2f}" if qc_adn.data and qc_adn.data[0].get('uniformity_of_base_coverage') else 'N/A'
+        mapd = f"{qc_adn.data[0]['mapd']:.2f}" if qc_adn.data and qc_adn.data[0].get('mapd') else 'N/A'
+        
+        # Extraer solo PASS/FAIL de fusion_qc
+        fusion_qc_raw = qc_arn.data[0]['fusion_qc'] if qc_arn.data and qc_arn.data[0].get('fusion_qc') else 'N/A'
+        if fusion_qc_raw != 'N/A':
+            fusion_qc = fusion_qc_raw.split(',')[0].strip().upper()
+        else:
+            fusion_qc = 'N/A'
+        
+        # Crear línea para copiar (separada por TAB para Google Sheets)
+        line_data = f"{sample_name}\t{mean_reads}\t{uniformity_coverage}\t{mapd}\t{fusion_qc}"
+        all_lines.append(line_data)
+        
+        # Guardar para mostrar en tabla
+        quality_data_display.append({
+            'sample_name': sample_name,
+            'mean_reads': str(mean_reads),
+            'uniformity_coverage': str(uniformity_coverage),
+            'mapd': str(mapd),
+            'fusion_qc': fusion_qc
+        })
+    
+    # Mostrar tabla visual
+    col_name, col_reads, col_aligned, col_mapd, col_fusion = st.columns([3, 2, 2, 1, 1])
+    with col_name:
+        st.markdown("**Sample_name**")
+    with col_reads:
+        st.markdown("**mean_reads**")
+    with col_aligned:
+        st.markdown("**uniformity_coverage**")
+    with col_mapd:
+        st.markdown("**mapd**")
+    with col_fusion:
+        st.markdown("**fusion_qc**")
+    
+    st.markdown("---")
+    
+    # Mostrar cada fila
+    for data in quality_data_display:
+        col_name, col_reads, col_aligned, col_mapd, col_fusion = st.columns([3, 2, 2, 1, 1])
+        
         with col_name:
-            st.markdown("**Sample_name**")
+            st.text(data['sample_name'])
         with col_reads:
-            st.markdown("**mean_reads**")
+            st.text(data['mean_reads'])
         with col_aligned:
-            st.markdown("**uniformity_coverage**")
+            st.text(data['uniformity_coverage'])
         with col_mapd:
-            st.markdown("**mapd**")
+            st.text(data['mapd'])
         with col_fusion:
-            st.markdown("**fusion_qc**")
-        with col_copy:
-            st.markdown("**Copiar**")
-        
-        st.markdown("---")
-        
-        # Obtener datos de QC
-        for sample_id in st.session_state.selected_samples:
-            # Info de muestra
-            sample_info = supabase.table('sample').select('sample_name').eq('sample_id', sample_id).execute()
-            sample_name = sample_info.data[0]['sample_name'] if sample_info.data else 'N/A'
-            
-            # QC ADN
-            qc_adn = supabase.table('sample_adn_qc').select('*').eq('sample_id', sample_id).execute()
-            
-            # QC ARN
-            qc_arn = supabase.table('sample_arn_qc').select('*').eq('sample_id', sample_id).execute()
-            
-            # Procesar datos
-            mean_reads = int(qc_adn.data[0]['median_reads_per_amplicon']) if qc_adn.data and qc_adn.data[0].get('median_reads_per_amplicon') else 'N/A'
-            uniformity_coverage = f"{qc_adn.data[0]['uniformity_of_base_coverage']:.2f}" if qc_adn.data and qc_adn.data[0].get('uniformity_of_base_coverage') else 'N/A'
-            mapd = f"{qc_adn.data[0]['mapd']:.2f}" if qc_adn.data and qc_adn.data[0].get('mapd') else 'N/A'
-            
-            # Extraer solo PASS/FAIL de fusion_qc
-            fusion_qc_raw = qc_arn.data[0]['fusion_qc'] if qc_arn.data and qc_arn.data[0].get('fusion_qc') else 'N/A'
-            if fusion_qc_raw != 'N/A':
-                fusion_qc = fusion_qc_raw.split(',')[0].strip().upper()
-            else:
-                fusion_qc = 'N/A'
-            
-            # Crear línea para copiar (separada por TAB para Google Sheets)
-            line_data = f"{sample_name}\t{mean_reads}\t{uniformity_coverage}\t{mapd}\t{fusion_qc}"
-            
-            # Mostrar fila
-            col_name, col_reads, col_aligned, col_mapd, col_fusion, col_copy = st.columns([3, 2, 2, 1, 1, 1])
-            
-            with col_name:
-                st.text(sample_name)
-            with col_reads:
-                st.text(str(mean_reads))
-            with col_aligned:
-                st.text(str(uniformity_coverage))
-            with col_mapd:
-                st.text(str(mapd))
-            with col_fusion:
-                st.text(fusion_qc)
-            with col_copy:
-                # Botón para mostrar campo copiable (se mantiene visible)
-                if st.button("📋", key=f"copy_btn_{sample_id}", help="Mostrar texto para copiar"):
-                    st.session_state[f"show_copy_{sample_id}"] = True
-            
-            # Mostrar campo copiable DEBAJO de la fila si se activó
-            if st.session_state.get(f"show_copy_{sample_id}", False):
-                st.text_area(
-                    "📋 Datos listos para copiar:",
-                    value=line_data,
-                    height=100,
-                    key=f"copytext_{sample_id}",
-                    help="Selecciona todo (Ctrl+A) y copia (Ctrl+C). Separado por TAB para Google Sheets."
-                )
-                # Botón para ocultar
-                if st.button("❌ Ocultar", key=f"hide_{sample_id}"):
-                    st.session_state[f"show_copy_{sample_id}"] = False
-                    st.rerun()
+            st.text(data['fusion_qc'])
+    
+    st.markdown("---")
+    
+    # Campo de texto grande con TODAS las filas para copiar de una vez
+    all_data_text = "\n".join(all_lines)
+    st.text_area(
+        "📋 **Copiar TODAS las filas** (Ctrl+A → Ctrl+C → Pegar en Google Sheets)",
+        value=all_data_text,
+        height=150,
+        key="copy_all_quality",
+        help="Los datos están separados por TAB. Al pegar en Google Sheets se distribuirán automáticamente en columnas."
+    )
+    
+    # Botón para cerrar
+    if st.button("❌ Cerrar Parámetros de Calidad", type="secondary"):
+        st.session_state['show_quality'] = False
+        st.rerun()
 
 # =====================================================
 # ANÁLISIS MOLECULAR
