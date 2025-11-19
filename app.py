@@ -143,7 +143,7 @@ if btn_quality:
         with col_reads:
             st.markdown("**mean_reads**")
         with col_aligned:
-            st.markdown("**percent_aligned**")
+            st.markdown("**uniformity_coverage**")
         with col_mapd:
             st.markdown("**mapd**")
         with col_fusion:
@@ -167,7 +167,7 @@ if btn_quality:
             
             # Procesar datos
             mean_reads = int(qc_adn.data[0]['median_reads_per_amplicon']) if qc_adn.data and qc_adn.data[0].get('median_reads_per_amplicon') else 'N/A'
-            percent_aligned = qc_adn.data[0]['percent_aligned_reads'] if qc_adn.data and qc_adn.data[0].get('percent_aligned_reads') else 'N/A'
+            uniformity_coverage = f"{qc_adn.data[0]['uniformity_of_base_coverage']:.2f}" if qc_adn.data and qc_adn.data[0].get('uniformity_of_base_coverage') else 'N/A'
             mapd = f"{qc_adn.data[0]['mapd']:.2f}" if qc_adn.data and qc_adn.data[0].get('mapd') else 'N/A'
             
             # Extraer solo PASS/FAIL de fusion_qc
@@ -178,7 +178,7 @@ if btn_quality:
                 fusion_qc = 'N/A'
             
             # Crear línea para copiar (separada por TAB para Google Sheets)
-            line_data = f"{sample_name}\t{mean_reads}\t{percent_aligned}\t{mapd}\t{fusion_qc}"
+            line_data = f"{sample_name}\t{mean_reads}\t{uniformity_coverage}\t{mapd}\t{fusion_qc}"
             
             # Mostrar fila
             col_name, col_reads, col_aligned, col_mapd, col_fusion, col_copy = st.columns([3, 2, 2, 1, 1, 1])
@@ -188,7 +188,7 @@ if btn_quality:
             with col_reads:
                 st.text(str(mean_reads))
             with col_aligned:
-                st.text(str(percent_aligned))
+                st.text(str(uniformity_coverage))
             with col_mapd:
                 st.text(str(mapd))
             with col_fusion:
