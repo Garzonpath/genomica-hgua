@@ -194,13 +194,23 @@ if btn_quality:
             with col_fusion:
                 st.text(fusion_qc)
             with col_copy:
-                # Botón que muestra el texto copiable
-                if st.button("📋", key=f"copy_{sample_id}", help="Click para ver texto copiable"):
+                # Botón para mostrar campo copiable (se mantiene visible)
+                if st.button("📋", key=f"copy_btn_{sample_id}", help="Mostrar texto para copiar"):
                     st.session_state[f"show_copy_{sample_id}"] = True
             
-            # Mostrar texto copiable si se presionó el botón
+            # Mostrar campo copiable DEBAJO de la fila si se activó
             if st.session_state.get(f"show_copy_{sample_id}", False):
-                st.text_input("Copiar esta línea:", value=line_data, key=f"copytext_{sample_id}")
+                st.text_area(
+                    "📋 Datos listos para copiar:",
+                    value=line_data,
+                    height=100,
+                    key=f"copytext_{sample_id}",
+                    help="Selecciona todo (Ctrl+A) y copia (Ctrl+C). Separado por TAB para Google Sheets."
+                )
+                # Botón para ocultar
+                if st.button("❌ Ocultar", key=f"hide_{sample_id}"):
+                    st.session_state[f"show_copy_{sample_id}"] = False
+                    st.rerun()
 
 # =====================================================
 # ANÁLISIS MOLECULAR
