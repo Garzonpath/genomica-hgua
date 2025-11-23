@@ -1,6 +1,13 @@
+# Existentes
 streamlit>=1.35.0
 supabase>=2.7.0
 pandas>=2.2.0
 plotly>=5.22.0
 python-docx>=1.1.0
 openpyxl>=3.1.2
+
+# NUEVO - Esencial para CIVICdb
+requests>=2.31.0
+
+# Opcional pero recomendado para CIVICdb
+python-dateutil>=2.8.2
