@@ -1,6 +1,7 @@
 import streamlit as st
 from supabase import create_client
 import pandas as pd
+import civicdb  # ← NUEVO
 
 # =====================================================
 # CONFIGURACIÓN
@@ -302,6 +303,45 @@ if st.session_state.get('analyzing_samples'):
                                     'clasificacion_hgua': new_class
                                 }).eq('mutation_id', mut['mutation_id']).execute()
                                 st.success("✅", icon="✅")
+                        
+                        # ===== BOTÓN CIVICDB (NUEVO) =====
+                        if st.button("🔬 Buscar en CIVICdb", key=f"civic_{mut['mutation_id']}", type="secondary", use_container_width=True):
+                            gene = mut['gene']
+                            protein = mut['protein']
+                            
+                            # Limpiar variant (p.V600E → V600E)
+                            if protein and protein.startswith('p.'):
+                                variant = protein[2:].replace('(', '').replace(')', '').strip()
+                            else:
+                                variant = protein
+                            
+                            if gene and variant:
+                                with st.spinner('🔍 Buscando en CIVICdb...'):
+                                    resultado = civicdb.buscar(gene, variant)
+                                
+                                if resultado:
+                                    st.success("✅ Encontrado en CIVICdb")
+                                    
+                                    with st.expander("📊 Información de CIVICdb", expanded=True):
+                                        # Terapias
+                                        if resultado['terapias']:
+                                            st.markdown(f"**💊 Terapias:** {', '.join(resultado['terapias'])}")
+                                        
+                                        # Evidencias
+                                        if resultado['evidencias']:
+                                            st.markdown("**📋 Evidencias principales:**")
+                                            for ev in resultado['evidencias']:
+                                                if ev['nivel'] and ev['significancia']:
+                                                    st.markdown(f"- **Nivel {ev['nivel']}**: {ev['significancia']}")
+                                                    if ev['descripcion']:
+                                                        st.caption(f"{ev['descripcion']}...")
+                                        
+                                        # Link completo
+                                        st.markdown(f"**🔗 [Ver información completa en CIVICdb]({resultado['url']})**")
+                                else:
+                                    st.warning("⚠️ No se encontró esta variante en CIVICdb")
+                            else:
+                                st.error("❌ Faltan datos de gen o variante")
                         
                         # Campo para búsqueda - ANCHO COMPLETO DEBAJO
                         if st.session_state.get(f"show_search_mut_{mut['mutation_id']}", False):
